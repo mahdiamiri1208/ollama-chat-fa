@@ -221,11 +221,14 @@ export default function Home() {
                       {m.toolLog && m.toolLog.length > 0 && (
                         <div className="tool-log">
                           {m.toolLog.map((t, idx) => (
-                            <div className="tool-log-item" key={idx}>
-                              <code>
-                                {t.name}({JSON.stringify(t.args)})
-                              </code>
-                            </div>
+                            <details className="tool-log-item" key={idx}>
+                              <summary>
+                                <code>
+                                  {t.name}({JSON.stringify(t.args)})
+                                </code>
+                              </summary>
+                              <pre className="tool-log-result">{t.result}</pre>
+                            </details>
                           ))}
                         </div>
                       )}

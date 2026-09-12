@@ -1,15 +1,31 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 export const runtime = "nodejs";
 
 const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
 const DEFAULT_MODEL = "gpt-oss:20b";
-const MAX_TOOL_ITERATIONS = 5;
+const MAX_TOOL_ITERATIONS = 15;
+const MAX_OUTPUT_CHARS = 4000;
 
 const WORKSPACE_DIR = path.resolve("./agent-workspace");
 if (!fs.existsSync(WORKSPACE_DIR)) {
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+}
+
+const NPM_BIN = process.platform === "win32" ? "npm.cmd" : "npm";
+
+const ALLOWED_COMMANDS = {
+  install: { cmd: NPM_BIN, args: ["install"] },
+  build: { cmd: NPM_BIN, args: ["run", "build"] },
+  lint: { cmd: NPM_BIN, args: ["run", "lint"] },
+};
+
+function truncateOutput(text) {
+  if (!text) return "(بدون خروجی)";
+  if (text.length <= MAX_OUTPUT_CHARS) return text;
+  return "...(ابتدای خروجی حذف شد)...\n" + text.slice(-MAX_OUTPUT_CHARS);
 }
 
 const TOOLS = [
@@ -70,6 +86,25 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "run_command",
+      description:
+        "Run a predefined project command (install dependencies, build, or lint) inside the workspace and return its output.",
+      parameters: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: {
+            type: "string",
+            description: "Which predefined command to run.",
+            enum: ["install", "build", "lint"],
+          },
+        },
+      },
+    },
+  },
 ];
 
 function isInsideWorkspace(requestedPath) {
@@ -104,6 +139,26 @@ const TOOL_IMPLEMENTATIONS = {
       return `فایل ${args.filename} با موفقیت نوشته شد.`;
     } catch (err) {
       return `خطا در نوشتن فایل: ${err.message}`;
+    }
+  },
+
+  run_command: (args) => {
+    const entry = ALLOWED_COMMANDS[args.action];
+    if (!entry) {
+      return `دستور "${args.action}" مجاز نیست. دستورهای مجاز: ${Object.keys(ALLOWED_COMMANDS).join(", ")}`;
+    }
+    try {
+      const output = execFileSync(entry.cmd, entry.args, {
+        cwd: WORKSPACE_DIR,
+        timeout: 60000,
+        encoding: "utf-8",
+        windowsHide: true,
+        shell: true, // ← این خط جدیده
+      });
+      return `اجرای موفق:\n${truncateOutput(output)}`;
+    } catch (err) {
+      const output = (err.stdout || "") + (err.stderr || "");
+      return `خطا در اجرای دستور:\n${truncateOutput(output || err.message)}`;
     }
   },
 };
@@ -154,7 +209,7 @@ export async function POST(req) {
       if (!message.tool_calls || message.tool_calls.length === 0) {
         return new Response(
           JSON.stringify({ content: message.content, toolLog }),
-          { headers: { "Content-Type": "application/json" } }
+          { headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -182,7 +237,7 @@ export async function POST(req) {
         content: "تعداد دفعات فراخوانی ابزار بیش از حد مجاز شد.",
         toolLog,
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
     if (err.name === "AbortError") {
@@ -193,7 +248,7 @@ export async function POST(req) {
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 }
