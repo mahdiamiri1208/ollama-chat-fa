@@ -1,0 +1,1242 @@
+/* ==========================================================================
+   Local Ollama chat — RTL layout, 600px column.
+   The amber accent is reserved for the "model is busy" state.
+   Colors are declared once with light-dark(); `color-scheme` picks the side.
+   Requires light-dark() support (Chrome 123+, Firefox 120+, Safari 17.5+).
+   ========================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --page: light-dark(#e4e7ec, #0f1218);
+  --bg: light-dark(#f2f4f7, #14181f);
+  --surface: light-dark(#ffffff, #1b212a);
+  --surface-sunken: light-dark(#f5f6f8, #171c24);
+  --surface-raised: light-dark(#ffffff, #222935);
+  --line: light-dark(#dde0e6, #2b3340);
+  --line-strong: light-dark(#c4c9d2, #3a4454);
+
+  /* Text */
+  --text: light-dark(#1b1f27, #e3e7ee);
+  --text-muted: light-dark(#626a78, #939cac);
+  --text-faint: light-dark(#8a92a0, #6d7788);
+
+  /* Busy / focus accent */
+  --accent: light-dark(#b9752a, #e0a458);
+  --accent-soft: light-dark(#fbf1e3, #2a2317);
+  --accent-line: light-dark(#e6c79c, #5c4726);
+
+  /* Errors */
+  --danger: light-dark(#a8352f, #ef8b84);
+  --danger-soft: light-dark(#fdeceb, #2d1a19);
+  --danger-line: light-dark(#f0c2be, #5a2f2c);
+
+  --user-bubble: light-dark(#22272f, #2e3744);
+  --user-bubble-text: light-dark(#f2f4f7, #eef1f6);
+
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+
+  --shadow-card: 0 18px 50px -24px
+    light-dark(rgba(20, 26, 36, 0.4), rgba(0, 0, 0, 0.85));
+  --shadow-pop: 0 12px 30px -12px
+    light-dark(rgba(20, 26, 36, 0.35), rgba(0, 0, 0, 0.7));
+  --shadow-soft: 0 6px 18px -12px
+    light-dark(rgba(20, 26, 36, 0.45), rgba(0, 0, 0, 0.75));
+
+  /* --font-vazir / --font-jetbrains come from next/font in layout.js */
+  --font-ui:
+    var(--font-vazir, "Vazirmatn"), system-ui, "Segoe UI", Tahoma, sans-serif;
+  --font-mono:
+    var(--font-jetbrains, "JetBrains Mono"), "SFMono-Regular", Consolas,
+    monospace;
+
+  --app-width: 600px;
+  --header-h: 56px;
+}
+
+/* Manual override from the theme button. "system" removes the attribute. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--page);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(button, select, textarea, a, details, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/*
+ * Scrollbars must sit on the RIGHT even though the UI is RTL.
+ * Browsers put the scrollbar on the left of an RTL scroller, so every
+ * vertical scroller is direction: ltr and its content is direction: rtl.
+ * Thin scrollbars follow the theme (color-scheme handles the colors).
+ */
+.transcript,
+.model-menu,
+.thinking-body,
+.tool-payload,
+.code-block pre,
+.table-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* --------------------------------------------------------------------------
+   App frame — 600px column in the middle of the page
+   -------------------------------------------------------------------------- */
+
+.viewport {
+  direction: rtl;
+  height: 100dvh;
+  display: flex;
+  justify-content: center;
+  background: var(--page);
+}
+
+.app {
+  width: 100%;
+  max-width: var(--app-width);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-inline: 1px solid var(--line);
+  overflow: hidden;
+}
+
+@media (min-width: 680px) {
+  .viewport {
+    padding-block: 22px;
+  }
+
+  .app {
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Header
+   -------------------------------------------------------------------------- */
+
+.topbar {
+  flex: 0 0 auto;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 12px;
+  background: var(--surface);
+  border-block-end: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunken);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    background 0.2s;
+}
+
+/* The mark itself turns amber while the model is answering. */
+.brand.busy .brand-mark {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.brand-text {
+  min-width: 0;
+}
+
+.brand-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.brand-state {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.brand-state.busy {
+  color: var(--accent);
+}
+
+.topbar-spacer {
+  flex: 1 1 auto;
+}
+
+.topbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* Icon buttons */
+
+.icon-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  border-radius: 50%;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-btn.on {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.icon-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Model picker — custom listbox so the popup follows the theme
+   -------------------------------------------------------------------------- */
+
+.model-slot {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.model-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.model-hint.error {
+  color: var(--danger);
+}
+
+.model-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.model-btn {
+  height: 32px;
+  max-width: 170px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* start = right in RTL (name side), end = left (chevron side) */
+  padding-inline: 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.model-btn:hover:not(:disabled),
+.model-btn.open {
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+
+.model-btn:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.model-btn .chev {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--text-faint);
+  transition: transform 0.18s ease;
+}
+
+.model-btn.open .chev {
+  transform: rotate(180deg);
+}
+
+/* Model label: the name plus a small chip for the tag (gpt-oss + 20b).
+   Model ids are Latin, so the label stays LTR inside the RTL UI. */
+.model-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-tag {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+.model-menu {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + 8px);
+  /* Physical on purpose: the app is always RTL. The list is an LTR scroller
+     (scrollbar on the right); its options are RTL again below. */
+  right: 0;
+  min-width: max(100%, 190px);
+  width: max-content;
+  max-width: min(300px, calc(100vw - 72px));
+  max-height: 264px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  direction: ltr;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  box-shadow: var(--shadow-pop);
+  outline: none;
+  transform-origin: top right;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .model-menu {
+    animation: menu-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.model-option {
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.model-option.selected {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.model-option.active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+/* Filled circle in the same neutral as the send button. */
+.model-option .tick {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--user-bubble);
+  color: var(--user-bubble-text);
+  stroke-width: 3;
+}
+
+/* --------------------------------------------------------------------------
+   Transcript
+   -------------------------------------------------------------------------- */
+
+.transcript {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  padding: 22px 16px 6px;
+  direction: ltr; /* scrollbar on the right */
+}
+
+.transcript > * {
+  direction: rtl; /* content stays right-to-left */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transcript {
+    scroll-behavior: auto;
+  }
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Empty state */
+
+.welcome {
+  margin-block-start: 8vh;
+  text-align: start;
+}
+
+/* No letter-spacing anywhere on Persian text: it breaks the cursive joins. */
+.welcome h2 {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.welcome p {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
+.starters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.starter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  text-align: start;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+
+/* The arrow icon points right; mirror it so it points left in RTL. */
+.starter-arrow {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  color: var(--text-faint);
+  transform: scaleX(-1);
+  transition:
+    transform 0.18s ease,
+    color 0.15s;
+}
+
+.starter:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+.starter:hover:not(:disabled) .starter-arrow {
+  color: var(--text);
+}
+
+.starter:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .starter:hover:not(:disabled) .starter-arrow {
+    transform: scaleX(-1) translateX(3px);
+  }
+
+  .starter:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+}
+
+/* Message rows */
+
+.turn {
+  display: flex;
+  flex-direction: column;
+}
+
+/* flex-end on the cross axis = inline-end, which is the left side in RTL. */
+.turn.user {
+  align-items: flex-end;
+}
+
+.turn.assistant {
+  align-items: stretch;
+}
+
+.user-bubble {
+  background: var(--user-bubble);
+  color: var(--user-bubble-text);
+  padding: 10px 15px;
+  border-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-sm);
+  max-width: 88%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14.5px;
+  text-align: start;
+}
+
+.answer {
+  min-width: 0;
+}
+
+.error-note {
+  border: 1px solid var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  font-size: 13.5px;
+}
+
+.error-note button {
+  margin-inline-start: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Thinking panel
+   -------------------------------------------------------------------------- */
+
+.thinking {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  margin-block-end: 13px;
+  overflow: hidden;
+}
+
+.thinking.live {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.thinking-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  padding: 9px 12px;
+  font-size: 12.5px;
+  text-align: start;
+}
+
+.thinking.live .thinking-head {
+  color: var(--accent);
+}
+
+.thinking-head .chev {
+  margin-inline-start: auto;
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+  transition: transform 0.18s ease;
+}
+
+.thinking.open .chev {
+  transform: rotate(180deg);
+}
+
+.thinking-timer {
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
+.thinking-body {
+  margin-inline: 12px;
+  padding: 4px 8px 12px 2px;
+  border-block-start: 1px dashed var(--line);
+  max-height: 300px;
+  overflow-y: auto;
+  direction: ltr; /* scrollbar on the right */
+}
+
+.thinking-text {
+  direction: rtl;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: start;
+  /* Reasoning is often English; let each paragraph pick its own direction. */
+  unicode-bidi: plaintext;
+}
+
+.thinking-pulse {
+  display: block;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 200% 100%;
+  animation: sweep 1.6s linear infinite;
+}
+
+@keyframes sweep {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-pulse {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Tool calls
+   -------------------------------------------------------------------------- */
+
+.tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block-end: 13px;
+}
+
+.tool {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.tool[open] {
+  background: var(--surface);
+}
+
+.tool summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tool summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-name {
+  font-family: var(--font-mono);
+  color: var(--text);
+  font-size: 11.5px;
+  direction: ltr;
+  unicode-bidi: isolate;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.tool-status {
+  margin-inline-start: auto;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.tool-status.running {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.tool-status.error {
+  color: var(--danger);
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+}
+
+.tool-payload {
+  max-height: 240px;
+  overflow: auto;
+  border-block-start: 1px solid var(--line);
+  background: var(--surface-sunken);
+  direction: ltr; /* scrollbar on the right */
+}
+
+.tool-payload pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: var(--text-muted);
+  direction: rtl;
+  text-align: start;
+  unicode-bidi: plaintext;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Markdown body
+   -------------------------------------------------------------------------- */
+
+.markdown {
+  text-align: start;
+}
+
+.markdown > *:first-child {
+  margin-block-start: 0;
+}
+
+.markdown > *:last-child {
+  margin-block-end: 0;
+}
+
+.markdown p {
+  margin: 0 0 13px;
+  overflow-wrap: anywhere;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 22px 0 10px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.markdown h1 {
+  font-size: 19px;
+}
+.markdown h2 {
+  font-size: 16.5px;
+}
+.markdown h3 {
+  font-size: 15px;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 13px;
+  padding-inline-start: 22px;
+}
+
+.markdown li {
+  margin-block-end: 5px;
+}
+
+.markdown a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.markdown blockquote {
+  margin: 0 0 13px;
+  padding-inline-start: 13px;
+  border-inline-start: 2px solid var(--line-strong);
+  color: var(--text-muted);
+}
+
+.markdown hr {
+  border: 0;
+  border-block-start: 1px solid var(--line);
+  margin: 20px 0;
+}
+
+.markdown :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Code blocks — the only part that stays LTR on purpose. */
+
+.code-block {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 0 0 15px;
+  background: var(--surface-sunken);
+}
+
+.code-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-block-end: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  direction: ltr;
+}
+
+.code-head .spacer {
+  flex: 1;
+}
+
+.code-head .mini-btn {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  direction: ltr;
+  text-align: left;
+}
+
+.code-block code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+/* Tables */
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 0 0 15px;
+}
+
+.table-wrap table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.table-wrap th,
+.table-wrap td {
+  border-block-end: 1px solid var(--line);
+  padding: 8px 11px;
+  text-align: start;
+}
+
+.table-wrap th {
+  background: var(--surface-sunken);
+  font-weight: 600;
+}
+
+.table-wrap tr:last-child td {
+  border-block-end: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Answer footer: stats and actions
+   -------------------------------------------------------------------------- */
+
+.answer-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-block-start: 9px;
+  min-height: 26px;
+  flex-wrap: wrap;
+}
+
+.stats {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.answer-foot .spacer {
+  flex: 1;
+}
+
+.mini-btn {
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-faint);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.mini-btn:hover {
+  color: var(--text);
+  background: var(--surface-sunken);
+}
+
+.mini-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Typing indicator */
+
+.typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 22px;
+}
+
+.typing span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: blink 1.25s infinite ease-in-out;
+}
+
+.typing span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.typing span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes blink {
+  0%,
+  70%,
+  100% {
+    opacity: 0.25;
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing span {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Composer
+   -------------------------------------------------------------------------- */
+
+.composer-zone {
+  flex: 0 0 auto;
+  position: relative;
+  padding: 8px 14px 14px;
+  background: linear-gradient(to top, var(--bg) 62%, transparent);
+}
+
+.jump-btn {
+  position: absolute;
+  top: -42px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 30px;
+  padding-inline: 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 12px;
+  box-shadow: var(--shadow-pop);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.jump-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  padding-block: 7px;
+  /* start = right (text side) is roomier than end = left (send button side) */
+  padding-inline: 12px 7px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.composer:focus-within {
+  border-color: var(--accent-line);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent),
+    var(--shadow-soft);
+}
+
+.composer textarea {
+  flex: 1 1 auto;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.7;
+  padding: 6px 0;
+  max-height: 180px;
+  direction: rtl;
+  text-align: start;
+  /* A left-side scrollbar would break the RTL look, so it is hidden. */
+  scrollbar-width: none;
+}
+
+.composer textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.send-btn,
+.stop-btn {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.15s;
+}
+
+.send-btn {
+  background: var(--user-bubble);
+  color: var(--user-bubble-text);
+}
+
+.send-btn:hover:not(:disabled),
+.stop-btn:hover {
+  opacity: 0.88;
+}
+
+.send-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .send-btn:active:not(:disabled),
+  .stop-btn:active {
+    transform: scale(0.94);
+  }
+}
+
+.stop-btn {
+  background: var(--accent);
+  color: #15181d;
+}
+
+.send-btn svg,
+.stop-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The arrow icon points right; mirror it so it points left in RTL. */
+.send-btn svg {
+  transform: scaleX(-1);
+}
+
+.composer-foot {
+  margin: 7px 2px 0;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: start;
+}
+
+.composer-foot kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+  background: var(--surface-sunken);
+  direction: ltr;
+  display: inline-block;
+}
+
+/* Keeps "Shift+Enter" in visual LTR order inside the RTL sentence. */
+.composer-foot .keys {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* --------------------------------------------------------------------------
+   Small screens
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 480px) {
+  .topbar {
+    padding-inline: 10px;
+    gap: 8px;
+  }
+
+  /* The brand mark turns amber while busy, so the text can go. */
+  .brand-text {
+    display: none;
+  }
+
+  .model-btn {
+    max-width: 130px;
+  }
+
+  .transcript {
+    padding: 16px 12px 4px;
+  }
+
+  .composer-zone {
+    padding: 6px 10px 10px;
+  }
+
+  /* 16px prevents iOS Safari from zooming in when the field is focused. */
+  .composer textarea {
+    font-size: 16px;
+  }
+
+  .composer-foot {
+    display: none;
+  }
+}
