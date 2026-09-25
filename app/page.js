@@ -524,6 +524,11 @@ function ToolTimeline({ tools }) {
 function Answer({ message, isStreaming, onRegenerate, canRegenerate }) {
   const [copied, setCopied] = useState(false);
   const hasBody = Boolean(message.content);
+  const responseMs =
+    message.responseMs ??
+    (isStreaming && message.responseStartedAt
+      ? Date.now() - message.responseStartedAt
+      : null);
 
   async function copy() {
     try {
@@ -546,6 +551,11 @@ function Answer({ message, isStreaming, onRegenerate, canRegenerate }) {
             </button>
           )}
         </div>
+        {responseMs !== null && (
+          <div className="response-duration">
+            زمان پاسخ: {formatShortDuration(responseMs)}
+          </div>
+        )}
       </div>
     );
   }
@@ -586,6 +596,12 @@ function Answer({ message, isStreaming, onRegenerate, canRegenerate }) {
         )
       )}
 
+      {isStreaming && responseMs !== null && (
+        <div className="response-duration" aria-live="off">
+          زمان پاسخ: {formatShortDuration(responseMs)}
+        </div>
+      )}
+
       {!isStreaming && hasBody && (
         <div className="answer-foot">
           {message.stats && (
@@ -604,6 +620,11 @@ function Answer({ message, isStreaming, onRegenerate, canRegenerate }) {
             </div>
           )}
           {message.stopped && <span className="stats">متوقف شد</span>}
+          {responseMs !== null && (
+            <span className="response-duration">
+              زمان پاسخ: {formatShortDuration(responseMs)}
+            </span>
+          )}
           <span className="spacer" />
           <button className="mini-btn" onClick={copy} type="button">
             <Icon.Copy />
@@ -845,6 +866,8 @@ export default function Home() {
   const runCompletion = useCallback(
     async (history) => {
       setLoading(true);
+      const startedAt = Date.now();
+      patchLast(() => ({ responseStartedAt: startedAt }));
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -955,7 +978,10 @@ export default function Home() {
         }
       } finally {
         if (isCurrent()) {
-          patchLast(endThinking);
+          patchLast((m) => ({
+            ...endThinking(m),
+            responseMs: Date.now() - (m.responseStartedAt || startedAt),
+          }));
           setLoading(false);
           abortRef.current = null;
         }

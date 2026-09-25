@@ -1,0 +1,9 @@
+{
+  "shipping": {
+    "default_fee_toman": null,
+    "free_shipping_minimum_toman": null,
+    "delivery_days": null,
+    "city_fees": {},
+    "note": ""
+  }
+}

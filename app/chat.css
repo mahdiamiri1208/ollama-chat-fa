@@ -606,6 +606,17 @@ button {
   min-width: 0;
 }
 
+.response-duration {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.answer > .response-duration {
+  margin-block-start: 7px;
+}
+
 .error-note {
   border: 1px solid var(--danger-line);
   background: var(--danger-soft);
