@@ -576,9 +576,11 @@ button {
   flex-direction: column;
 }
 
-/* flex-end on the cross axis = inline-end, which is the left side in RTL. */
+/* Cross-axis start/end on a column flex container follow the INLINE axis,
+   not the visual left/right — and in RTL, inline-start is the right side.
+   So: flex-start = right (user's own messages), flex-end = left (the model). */
 .turn.user {
-  align-items: flex-end;
+  align-items: flex-start;
 }
 
 .turn.assistant {
@@ -590,7 +592,9 @@ button {
   color: var(--user-bubble-text);
   padding: 10px 15px;
   border-radius: var(--radius-lg);
-  border-end-end-radius: var(--radius-sm);
+  /* The sharp "tail" corner sits on the bubble's own edge: block-end (bottom)
+     + inline-start (right in RTL) — i.e. bottom-right. */
+  border-end-start-radius: var(--radius-sm);
   max-width: 88%;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1008,10 +1012,15 @@ button {
   height: 13px;
 }
 
-/* Typing indicator */
+/* Typing indicator. The answer column is full-width and RTL text starts on
+   the right, so without this the dots would sit on the right — the same
+   side as the user's own bubble. margin-inline-start: auto eats the extra
+   space on the right, pushing the (shrink-wrapped) dots to the left. */
 
 .typing {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
+  margin-inline-start: auto;
   gap: 4px;
   align-items: center;
   height: 22px;

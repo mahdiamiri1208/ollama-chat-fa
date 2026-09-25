@@ -1,4 +1,3 @@
-
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -12,12 +11,13 @@ const MAX_OUTPUT_CHARS = 4000;
 const MAX_LIST_RESULTS = 15;
 
 const WORKSPACE_DIR = path.resolve("C:/Users/mahdi/Desktop/ollama-chat-fa");
+const DATA_DIR = path.join(WORKSPACE_DIR, "data");
 
 if (!fs.existsSync(WORKSPACE_DIR)) {
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 }
 
-const STORE_DATA_PATH = path.join(WORKSPACE_DIR, "data", "store-data.json");
+const STORE_DATA_PATH = path.join(DATA_DIR, "store-data.json");
 
 function loadStoreData() {
   try {
@@ -56,15 +56,24 @@ function scoreProducts(query, products) {
 }
 
 const ALLOWED_COMMANDS = {
-  install: { cmd: process.platform === "win32" ? "npm.cmd" : "npm", args: ["install"] },
-  build: { cmd: process.platform === "win32" ? "npm.cmd" : "npm", args: ["run", "build"] },
-  lint: { cmd: process.platform === "win32" ? "npm.cmd" : "npm", args: ["run", "lint"] },
+  install: {
+    cmd: process.platform === "win32" ? "npm.cmd" : "npm",
+    args: ["install"],
+  },
+  build: {
+    cmd: process.platform === "win32" ? "npm.cmd" : "npm",
+    args: ["run", "build"],
+  },
+  lint: {
+    cmd: process.platform === "win32" ? "npm.cmd" : "npm",
+    args: ["run", "lint"],
+  },
 };
 
 function truncateOutput(text) {
   if (!text) return "(بدون خروجی)";
   if (text.length <= MAX_OUTPUT_CHARS) return text;
-  return "...(ابتدای خروجی حذف شد)...\n" + text.slice(-MAX_OUTPUT_CHARS);
+  return "...(ابتدای متن حذف شد)...\n" + text.slice(-MAX_OUTPUT_CHARS);
 }
 
 const STATIC_TOOLS = [
@@ -73,14 +82,15 @@ const STATIC_TOOLS = [
     function: {
       name: "read_file",
       description:
-        "Read the text content of a file from the project workspace folder.",
+        "Read the text content of a CODE file from the project workspace folder (not the store database). Files under data/ are not accessible here — use check_inventory or list_products for product/review data.",
       parameters: {
         type: "object",
         required: ["filename"],
         properties: {
           filename: {
             type: "string",
-            description: "Relative filename inside the workspace, e.g. notes.txt",
+            description:
+              "Relative filename inside the workspace, e.g. app/page.js",
           },
         },
       },
@@ -91,14 +101,15 @@ const STATIC_TOOLS = [
     function: {
       name: "write_file",
       description:
-        "Create a new file or overwrite an existing one inside the project workspace folder with the given text content.",
+        "Create a new CODE file or overwrite an existing one inside the project workspace folder (not the store database). Files under data/ are not accessible here.",
       parameters: {
         type: "object",
         required: ["filename", "content"],
         properties: {
           filename: {
             type: "string",
-            description: "Relative filename inside the workspace, e.g. notes.txt",
+            description:
+              "Relative filename inside the workspace, e.g. app/page.js",
           },
           content: {
             type: "string",
@@ -160,7 +171,7 @@ function buildListProductsTool(store) {
     function: {
       name: "list_products",
       description:
-        "Search and list store products. Use category and/or price range when they clearly match, AND/OR use keyword for anything else the customer mentions (a feature, use-case, or product type like 'gaming' or 'صندلی') to search product names and descriptions. When in doubt, prefer adding a keyword over guessing a category.",
+        "Search and list store products. Use category and/or price range when they clearly match, AND/OR use keyword for anything else (a feature, use-case, or product type) to search product names and descriptions. Use sort_by='price_asc' to find the cheapest matching product(s) and 'price_desc' to find the most expensive — always prefer this over manually scanning many pages when asked about cheapest/most expensive.",
       parameters: {
         type: "object",
         properties: {
@@ -182,27 +193,34 @@ function buildListProductsTool(store) {
             description:
               "Optional free-text keyword (Persian) to search inside product names and descriptions, e.g. 'گیمینگ'.",
           },
+          sort_by: {
+            type: "string",
+            description:
+              "How to order and prioritize results. 'rating' (default) shows best-rated first. 'price_asc' shows cheapest first (use this to find the cheapest product). 'price_desc' shows most expensive first (use this to find the most expensive product).",
+            enum: ["rating", "price_asc", "price_desc"],
+          },
         },
       },
     },
   };
 }
 
-function isInsideWorkspace(requestedPath) {
-  return (
-    requestedPath === WORKSPACE_DIR ||
-    requestedPath.startsWith(WORKSPACE_DIR + path.sep)
-  );
+function isInsideDir(requestedPath, dir) {
+  return requestedPath === dir || requestedPath.startsWith(dir + path.sep);
 }
 
 const TOOL_IMPLEMENTATIONS = {
   read_file: (args) => {
     const requestedPath = path.resolve(WORKSPACE_DIR, args.filename);
-    if (!isInsideWorkspace(requestedPath)) {
+    if (!isInsideDir(requestedPath, WORKSPACE_DIR)) {
       return "دسترسی غیرمجاز: این مسیر خارج از پوشه‌ی workspace است.";
     }
+    if (isInsideDir(requestedPath, DATA_DIR)) {
+      return "دسترسی غیرمجاز: فایل‌های داخل data/ فقط از طریق ابزارهای check_inventory یا list_products قابل‌دسترسی‌ان، نه read_file.";
+    }
     try {
-      return fs.readFileSync(requestedPath, "utf-8");
+      const content = fs.readFileSync(requestedPath, "utf-8");
+      return truncateOutput(content);
     } catch (err) {
       return `خطا در خواندن فایل: ${err.message}`;
     }
@@ -210,8 +228,11 @@ const TOOL_IMPLEMENTATIONS = {
 
   write_file: (args) => {
     const requestedPath = path.resolve(WORKSPACE_DIR, args.filename);
-    if (!isInsideWorkspace(requestedPath)) {
+    if (!isInsideDir(requestedPath, WORKSPACE_DIR)) {
       return "دسترسی غیرمجاز: این مسیر خارج از پوشه‌ی workspace است.";
+    }
+    if (isInsideDir(requestedPath, DATA_DIR)) {
+      return "دسترسی غیرمجاز: فایل‌های داخل data/ فقط از طریق ابزارهای رسمی فروشگاه قابل‌تغییرن، نه write_file.";
     }
     try {
       fs.writeFileSync(requestedPath, args.content, "utf-8");
@@ -260,7 +281,7 @@ const TOOL_IMPLEMENTATIONS = {
       const options = tied
         .map(
           (entry) =>
-            `${entry.product.name} (${entry.product.price.toLocaleString("fa-IR")} تومان)`
+            `${entry.product.name} (${entry.product.price.toLocaleString("fa-IR")} تومان)`,
         )
         .join("، ");
       return `چند محصول با این توضیحات پیدا شد، اسم دقیق‌تری لازم است: ${options}`;
@@ -305,18 +326,28 @@ const TOOL_IMPLEMENTATIONS = {
     }
 
     const totalMatches = results.length;
-    results = results
-      .slice()
-      .sort((a, b) => b.average_rating - a.average_rating)
-      .slice(0, MAX_LIST_RESULTS);
+
+    if (args.sort_by === "price_asc") {
+      results = results.slice().sort((a, b) => a.price - b.price);
+    } else if (args.sort_by === "price_desc") {
+      results = results.slice().sort((a, b) => b.price - a.price);
+    } else {
+      results = results
+        .slice()
+        .sort((a, b) => b.average_rating - a.average_rating);
+    }
+
+    results = results.slice(0, MAX_LIST_RESULTS);
 
     const lines = results.map(
       (p) =>
-        `${p.name} — ${p.price.toLocaleString("fa-IR")} تومان — امتیاز ${p.average_rating}/۵ — موجودی: ${p.stock > 0 ? p.stock + " عدد" : "ناموجود"}`
+        `${p.name} — ${p.price.toLocaleString("fa-IR")} تومان — امتیاز ${p.average_rating}/۵ — موجودی: ${p.stock > 0 ? p.stock + " عدد" : "ناموجود"}`,
     );
 
     if (totalMatches > results.length) {
-      lines.push(`(و ${totalMatches - results.length} محصول دیگر که نشان داده نشد)`);
+      lines.push(
+        `(و ${totalMatches - results.length} محصول دیگر که نشان داده نشد)`,
+      );
     }
 
     return lines.join("\n");
@@ -358,7 +389,7 @@ export async function POST(req) {
   const systemMessage = {
     role: "system",
     content:
-      "You are a helpful shop assistant. Always answer in Persian (فارسی) unless the user explicitly asks for another language. You only know about products through the check_inventory and list_products tools — never assume a real-world brand (Samsung, Sony, Xiaomi, etc.) is sold here. When a customer asks for a recommendation or wants to browse, use list_products: use category/price filters when they clearly fit, and use the keyword filter for anything else (features, use-cases, product types) instead of guessing a category or giving up. When a customer names a specific product, use check_inventory.",
+      "You are a helpful shop assistant. Always answer in Persian (فارسی) unless the user explicitly asks for another language. You only know about products through the check_inventory and list_products tools — never assume a real-world brand (Samsung, Sony, Xiaomi, etc.) is sold here, and never use read_file/write_file to access data/ files. When a customer asks for a recommendation or wants to browse, use list_products: use category/price filters when they clearly fit, keyword for anything else, and sort_by='price_asc' or 'price_desc' when asked for the cheapest or most expensive item. When a customer names a specific product, use check_inventory. read_file and write_file are only for the project's own code files, never for store data.",
   };
 
   const conversation = [systemMessage, ...messages];
@@ -372,7 +403,7 @@ export async function POST(req) {
       if (!message.tool_calls || message.tool_calls.length === 0) {
         return new Response(
           JSON.stringify({ content: message.content, toolLog }),
-          { headers: { "Content-Type": "application/json" } }
+          { headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -400,7 +431,7 @@ export async function POST(req) {
         content: "تعداد دفعات فراخوانی ابزار بیش از حد مجاز شد.",
         toolLog,
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
     if (err.name === "AbortError") {
@@ -411,7 +442,7 @@ export async function POST(req) {
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 }
