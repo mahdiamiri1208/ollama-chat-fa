@@ -10,9 +10,9 @@ const PREFERRED_DEFAULT = "gpt-oss:20b";
 const STORAGE_KEY = "ollama-chat/v1";
 
 const STARTERS = [
-  "فایل‌های داخل sandbox را لیست کن",
-  "محتوای notes.txt را خلاصه کن",
-  "تفاوت RAG و fine-tune را ساده توضیح بده",
+  "برای بازی و گیمینگ چی پیشنهاد می‌کنی؟",
+  "ارزان‌ترین محصول فروشگاه چیه؟",
+  "هدفون آریا X2 موجوده؟",
 ];
 
 // Raw HTML from the model is rendered (rehype-raw), so block the elements that
@@ -228,6 +228,33 @@ const Icon = {
       {...p}
     >
       <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  ),
+  Map: (p) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      {...p}
+    >
+      <path d="M4 4v16h16" strokeWidth="1.3" />
+      <circle cx="9" cy="15" r="2" />
+      <circle cx="13" cy="8" r="2" />
+      <circle cx="18" cy="13" r="2" />
+    </svg>
+  ),
+  X: (p) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      {...p}
+    >
+      <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   ),
 };
@@ -642,6 +669,164 @@ function Answer({ message, isStreaming, onRegenerate, canRegenerate }) {
   );
 }
 
+/* ---------------------------------------------------------- semantic map */
+
+const MAP_W = 320;
+const MAP_H = 250;
+const MAP_PAD = 26;
+
+function MapView({ map }) {
+  const [selectedId, setSelectedId] = useState(null);
+
+  useEffect(() => setSelectedId(null), [map]);
+
+  const xs = [...map.points.map((p) => p.x), map.queryPoint.x];
+  const ys = [...map.points.map((p) => p.y), map.queryPoint.y];
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const spanX = Math.max(...xs) - minX || 1;
+  const spanY = Math.max(...ys) - minY || 1;
+  const sx = (x) => MAP_PAD + ((x - minX) / spanX) * (MAP_W - 2 * MAP_PAD);
+  const sy = (y) => MAP_H - MAP_PAD - ((y - minY) / spanY) * (MAP_H - 2 * MAP_PAD);
+
+  const qx = sx(map.queryPoint.x);
+  const qy = sy(map.queryPoint.y);
+  const matchSet = new Set(map.matchIds);
+  const selected = map.points.find((p) => p.id === selectedId) || null;
+
+  function pick(id) {
+    setSelectedId((prev) => (prev === id ? null : id));
+  }
+
+  return (
+    <div className="map-view">
+      <div className="map-query">
+        سؤال: <strong>{map.query}</strong>
+      </div>
+
+      <svg
+        viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+        className="map-svg"
+        role="img"
+        aria-label="نقشه دوبعدی بردار محصولات و سؤال کاربر"
+      >
+        {map.points
+          .filter((p) => matchSet.has(p.id))
+          .map((p) => (
+            <line
+              key={`link-${p.id}`}
+              className="map-link"
+              x1={qx}
+              y1={qy}
+              x2={sx(p.x)}
+              y2={sy(p.y)}
+            />
+          ))}
+        {map.points.map((p) => {
+          const pct = Math.max(10, Math.min(100, Math.round(p.sim * 100)));
+          const isMatch = matchSet.has(p.id);
+          return (
+            <circle
+              key={p.id}
+              className={`map-dot ${isMatch ? "match" : ""} ${p.id === selectedId ? "sel" : ""}`}
+              cx={sx(p.x)}
+              cy={sy(p.y)}
+              r={isMatch ? 6 : 4.5}
+              style={{
+                fill: `color-mix(in srgb, var(--accent) ${pct}%, var(--text-faint))`,
+              }}
+              tabIndex={0}
+              role="button"
+              aria-label={`${p.name}، شباهت ${toPersianNumber(p.sim.toFixed(2))}`}
+              onClick={() => pick(p.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  pick(p.id);
+                }
+              }}
+            >
+              <title>{`${p.name} — شباهت ${toPersianNumber(p.sim.toFixed(2))}`}</title>
+            </circle>
+          );
+        })}
+        <g className="map-query-point" transform={`translate(${qx},${qy})`}>
+          <rect x={-6} y={-6} width={12} height={12} transform="rotate(45)" />
+          <title>سؤال شما</title>
+        </g>
+      </svg>
+
+      <div className="map-legend">
+        <span>
+          <span className="legend-dot" /> محصول
+        </span>
+        <span>
+          <span className="legend-diamond" /> سؤال شما
+        </span>
+        <span>
+          <span className="legend-line" /> نتیجه‌ی منطبق
+        </span>
+      </div>
+
+      <div className="map-detail" aria-live="polite">
+        {selected ? (
+          <>
+            <strong>{selected.name}</strong>
+            <span>
+              شباهت: {toPersianNumber(selected.sim.toFixed(2))}
+              {typeof selected.price === "number" &&
+                ` — ${toPersianNumber(selected.price.toLocaleString("fa-IR"))} تومان`}
+              {typeof selected.stock === "number" &&
+                (selected.stock > 0
+                  ? ` — ${toPersianNumber(selected.stock)} عدد موجود`
+                  : " — ناموجود")}
+            </span>
+          </>
+        ) : (
+          <span className="map-detail-hint">
+            روی یک نقطه یا نوار بزن تا جزئیات محصول را ببینی.
+          </span>
+        )}
+      </div>
+
+      <div className="map-bars">
+        {map.points.slice(0, 8).map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className={`bar-row ${matchSet.has(p.id) ? "match" : ""} ${p.id === selectedId ? "sel" : ""}`}
+            onClick={() => pick(p.id)}
+          >
+            <span className="bar-name" title={p.name}>
+              {p.name}
+            </span>
+            <span className="bar-track">
+              <span
+                className="bar-fill"
+                style={{ width: `${Math.min(100, p.sim * 100)}%` }}
+              />
+              <span
+                className="bar-threshold"
+                style={{ insetInlineStart: `${map.threshold * 100}%` }}
+              />
+            </span>
+            <span className="bar-num">
+              {toPersianNumber(p.sim.toFixed(2))}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <p className="map-note">
+        این نقشه تصویر دوبعدیِ فضای {toPersianNumber(map.dim)}بعدی است (حدود{" "}
+        {toPersianNumber(Math.round(map.varianceExplained * 100))}٪ از اطلاعات
+        حفظ شده)؛ فاصله‌ی نقاط تقریبی است. عدد شباهت دقیق است و خط چینِ روی
+        نوارها آستانه‌ی {toPersianNumber(map.threshold)} را نشان می‌دهد.
+      </p>
+    </div>
+  );
+}
+
 /* =========================================================== main component */
 
 export default function Home() {
@@ -660,6 +845,8 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [, forceTick] = useState(0); // drives the live thinking timer
+  const [semanticMap, setSemanticMap] = useState(null);
+  const [mapOpen, setMapOpen] = useState(false);
 
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
@@ -716,6 +903,11 @@ export default function Home() {
   }, []);
 
   const isDark = theme === "dark" || (theme === "system" && systemDark);
+
+  // روی صفحه‌ی عریض پنل نقشه از ابتدا باز باشد؛ روی موبایل بسته می‌ماند.
+  useEffect(() => {
+    setMapOpen(window.matchMedia("(min-width: 1100px)").matches);
+  }, []);
 
   /* ------------------------------------------------------------ model list */
 
@@ -911,6 +1103,8 @@ export default function Home() {
               result: t.result,
             })),
           }));
+          const maps = (data.toolLog || []).filter((t) => t.map);
+          if (maps.length > 0) setSemanticMap(maps[maps.length - 1].map);
           return;
         }
 
@@ -1057,6 +1251,7 @@ export default function Home() {
     if (loading) stop();
     setMessages([]);
     setInput("");
+    setSemanticMap(null);
     resetTextarea();
     setAtBottom(true);
   }
@@ -1090,7 +1285,8 @@ export default function Home() {
 
   return (
     <div className="viewport" dir="rtl" lang="fa">
-      <div className="app">
+      <div className="layout">
+        <div className="app">
         <header className="topbar">
           <div className={`brand ${loading ? "busy" : ""}`}>
             <span className="brand-mark">چ</span>
@@ -1127,6 +1323,17 @@ export default function Home() {
           <span className="topbar-spacer" />
 
           <div className="topbar-tools">
+            <button
+              className={`icon-btn ${mapOpen ? "on" : ""}`}
+              onClick={() => setMapOpen((v) => !v)}
+              title="نقشه‌ی معنی (بردارها)"
+              aria-label="نقشه‌ی معنی"
+              aria-pressed={mapOpen}
+              type="button"
+            >
+              <Icon.Map />
+            </button>
+
             <button
               className={`icon-btn ${thinkEnabled ? "on" : ""}`}
               onClick={() => setThinkEnabled((v) => !v)}
@@ -1268,6 +1475,38 @@ export default function Home() {
             خط جدید · <kbd>Esc</kbd> توقف
           </div>
         </div>
+        </div>
+
+        <aside
+          className={`map-panel ${mapOpen ? "open" : ""}`}
+          aria-label="نقشه معنی محصولات"
+        >
+          <div className="map-head">
+            <span className="map-title">نقشه‌ی معنی</span>
+            <button
+              className="icon-btn"
+              onClick={() => setMapOpen(false)}
+              title="بستن نقشه"
+              aria-label="بستن نقشه"
+              type="button"
+            >
+              <Icon.X />
+            </button>
+          </div>
+          <div className="map-body">
+            {semanticMap ? (
+              <MapView map={semanticMap} />
+            ) : (
+              <div className="map-empty">
+                <p>هنوز جست‌وجوی معنایی انجام نشده است.</p>
+                <p>
+                  سؤالی مثل «برای بازی چی خوبه؟» بپرس تا بردار سؤال و محصولات
+                  اینجا رسم شود و ببینی کدام نزدیک‌تر است.
+                </p>
+              </div>
+            )}
+          </div>
+        </aside>
       </div>
     </div>
   );
