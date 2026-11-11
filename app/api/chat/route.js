@@ -3,7 +3,7 @@ import path from "node:path";
 
 export const runtime = "nodejs";
 
-const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
+const OLLAMA_URL = "http://192.168.254.148:11434/api/chat";
 const DEFAULT_MODEL = "gpt-oss:20b";
 const MAX_TOOL_ITERATIONS = 6;
 const MAX_LIST_RESULTS = 15;

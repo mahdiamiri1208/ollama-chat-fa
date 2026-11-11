@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 
-const OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags";
+const OLLAMA_TAGS_URL = "http://192.168.254.148:11434/api/tags";
 
 export async function GET() {
   try {
