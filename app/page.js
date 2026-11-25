@@ -677,8 +677,12 @@ const MAP_PAD = 26;
 
 function MapView({ map }) {
   const [selectedId, setSelectedId] = useState(null);
+  const [hoverId, setHoverId] = useState(null);
 
-  useEffect(() => setSelectedId(null), [map]);
+  useEffect(() => {
+    setSelectedId(null);
+    setHoverId(null);
+  }, [map]);
 
   const xs = [...map.points.map((p) => p.x), map.queryPoint.x];
   const ys = [...map.points.map((p) => p.y), map.queryPoint.y];
@@ -693,10 +697,19 @@ function MapView({ map }) {
   const qy = sy(map.queryPoint.y);
   const matchSet = new Set(map.matchIds);
   const selected = map.points.find((p) => p.id === selectedId) || null;
+  const hovered = map.points.find((p) => p.id === hoverId) || null;
+
+  // map.points is already sorted by similarity (desc), so index = rank.
+  const matches = map.points.filter((p) => matchSet.has(p.id));
+  const rankOf = new Map(matches.map((p, i) => [p.id, i + 1]));
 
   function pick(id) {
     setSelectedId((prev) => (prev === id ? null : id));
   }
+
+  const tipX = hovered ? sx(hovered.x) : 0;
+  const tipShift =
+    tipX < MAP_W * 0.33 ? "0%" : tipX > MAP_W * 0.66 ? "-100%" : "-50%";
 
   return (
     <div className="map-view">
@@ -704,67 +717,120 @@ function MapView({ map }) {
         سؤال: <strong>{map.query}</strong>
       </div>
 
-      <svg
-        viewBox={`0 0 ${MAP_W} ${MAP_H}`}
-        className="map-svg"
-        role="img"
-        aria-label="نقشه دوبعدی بردار محصولات و سؤال کاربر"
-      >
-        {map.points
-          .filter((p) => matchSet.has(p.id))
-          .map((p) => (
-            <line
-              key={`link-${p.id}`}
-              className="map-link"
-              x1={qx}
-              y1={qy}
-              x2={sx(p.x)}
-              y2={sy(p.y)}
-            />
-          ))}
-        {map.points.map((p) => {
-          const pct = Math.max(10, Math.min(100, Math.round(p.sim * 100)));
-          const isMatch = matchSet.has(p.id);
-          return (
-            <circle
-              key={p.id}
-              className={`map-dot ${isMatch ? "match" : ""} ${p.id === selectedId ? "sel" : ""}`}
-              cx={sx(p.x)}
-              cy={sy(p.y)}
-              r={isMatch ? 6 : 4.5}
-              style={{
-                fill: `color-mix(in srgb, var(--accent) ${pct}%, var(--text-faint))`,
-              }}
-              tabIndex={0}
-              role="button"
-              aria-label={`${p.name}، شباهت ${toPersianNumber(p.sim.toFixed(2))}`}
-              onClick={() => pick(p.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  pick(p.id);
-                }
-              }}
-            >
-              <title>{`${p.name} — شباهت ${toPersianNumber(p.sim.toFixed(2))}`}</title>
-            </circle>
-          );
-        })}
-        <g className="map-query-point" transform={`translate(${qx},${qy})`}>
-          <rect x={-6} y={-6} width={12} height={12} transform="rotate(45)" />
-          <title>سؤال شما</title>
-        </g>
-      </svg>
+      <div className="map-svg-wrap">
+        <svg
+          viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+          className="map-svg"
+          role="img"
+          aria-label="نقشه دوبعدی بردار محصولات و سؤال کاربر"
+        >
+          {map.points
+            .filter((p) => matchSet.has(p.id))
+            .map((p) => (
+              <line
+                key={`link-${p.id}`}
+                className="map-link"
+                x1={qx}
+                y1={qy}
+                x2={sx(p.x)}
+                y2={sy(p.y)}
+              />
+            ))}
+          {map.points.map((p) => {
+            const isMatch = matchSet.has(p.id);
+            const rank = rankOf.get(p.id);
+            const cx = sx(p.x);
+            const cy = sy(p.y);
+            return (
+              <g key={p.id}>
+                <circle
+                  className={`map-dot ${isMatch ? "match" : ""} ${p.id === selectedId ? "sel" : ""} ${p.id === hoverId ? "hov" : ""}`}
+                  cx={cx}
+                  cy={cy}
+                  r={isMatch ? 7 : 3.2}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${p.name}، شباهت ${toPersianNumber(p.sim.toFixed(2))}`}
+                  onClick={() => pick(p.id)}
+                  onMouseEnter={() => setHoverId(p.id)}
+                  onMouseLeave={() => setHoverId((h) => (h === p.id ? null : h))}
+                  onFocus={() => setHoverId(p.id)}
+                  onBlur={() => setHoverId((h) => (h === p.id ? null : h))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      pick(p.id);
+                    }
+                  }}
+                />
+                {isMatch && (
+                  <text
+                    className="map-rank"
+                    x={cx}
+                    y={cy}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                  >
+                    {toPersianNumber(rank)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          <g className="map-query-point" transform={`translate(${qx},${qy})`}>
+            <rect x={-6} y={-6} width={12} height={12} transform="rotate(45)" />
+          </g>
+          <text
+            className="map-query-label"
+            x={qx}
+            y={qy - 13}
+            textAnchor="middle"
+          >
+            سؤال شما
+          </text>
+        </svg>
+
+        {hovered && (
+          <div
+            className="map-tip"
+            style={{
+              left: `${(sx(hovered.x) / MAP_W) * 100}%`,
+              top: `${(sy(hovered.y) / MAP_H) * 100}%`,
+              transform: `translate(${tipShift}, calc(-100% - 12px))`,
+            }}
+          >
+            <strong>{hovered.name}</strong>
+            <span>
+              شباهت {toPersianNumber(hovered.sim.toFixed(2))}
+              {rankOf.has(hovered.id) && ` · رتبه ${toPersianNumber(rankOf.get(hovered.id))}`}
+            </span>
+            {typeof hovered.price === "number" && (
+              <span>
+                {toPersianNumber(hovered.price.toLocaleString("fa-IR"))} تومان
+                {typeof hovered.stock === "number" &&
+                  (hovered.stock > 0
+                    ? ` · ${toPersianNumber(hovered.stock)} عدد موجود`
+                    : " · ناموجود")}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <p className="map-caption">
+        هر نقطه یک محصول است. نقطه‌های شماره‌دار نتیجه‌های منطبق‌اند؛ هرچه به
+        لوزیِ «سؤال شما» نزدیک‌تر باشند، شباهت بیشتری دارند.
+      </p>
 
       <div className="map-legend">
         <span>
-          <span className="legend-dot" /> محصول
+          <span className="legend-dot match">۱</span> نتیجه‌ی منطبق
+        </span>
+        <span>
+          <span className="legend-dot" /> سایر محصولات
         </span>
         <span>
           <span className="legend-diamond" /> سؤال شما
-        </span>
-        <span>
-          <span className="legend-line" /> نتیجه‌ی منطبق
         </span>
       </div>
 
@@ -789,39 +855,54 @@ function MapView({ map }) {
         )}
       </div>
 
+      <div className="map-bars-head">
+        <span>رتبه‌بندی شباهت</span>
+        <span className="map-threshold-note">
+          خط‌چین = آستانه {toPersianNumber(map.threshold)}
+        </span>
+      </div>
+
       <div className="map-bars">
-        {map.points.slice(0, 8).map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={`bar-row ${matchSet.has(p.id) ? "match" : ""} ${p.id === selectedId ? "sel" : ""}`}
-            onClick={() => pick(p.id)}
-          >
-            <span className="bar-name" title={p.name}>
-              {p.name}
-            </span>
-            <span className="bar-track">
-              <span
-                className="bar-fill"
-                style={{ width: `${Math.min(100, p.sim * 100)}%` }}
-              />
-              <span
-                className="bar-threshold"
-                style={{ insetInlineStart: `${map.threshold * 100}%` }}
-              />
-            </span>
-            <span className="bar-num">
-              {toPersianNumber(p.sim.toFixed(2))}
-            </span>
-          </button>
-        ))}
+        {map.points.slice(0, 8).map((p) => {
+          const rank = rankOf.get(p.id);
+          return (
+            <button
+              key={p.id}
+              type="button"
+              className={`bar-row ${matchSet.has(p.id) ? "match" : ""} ${p.id === selectedId ? "sel" : ""}`}
+              onClick={() => pick(p.id)}
+              onMouseEnter={() => setHoverId(p.id)}
+              onMouseLeave={() => setHoverId((h) => (h === p.id ? null : h))}
+            >
+              <span className={`bar-rank ${rank ? "on" : ""}`}>
+                {rank ? toPersianNumber(rank) : "·"}
+              </span>
+              <span className="bar-name" title={p.name}>
+                {p.name}
+              </span>
+              <span className="bar-track">
+                <span
+                  className="bar-fill"
+                  style={{ width: `${Math.min(100, p.sim * 100)}%` }}
+                />
+                <span
+                  className="bar-threshold"
+                  style={{ insetInlineStart: `${map.threshold * 100}%` }}
+                />
+              </span>
+              <span className="bar-num">
+                {toPersianNumber(p.sim.toFixed(2))}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <p className="map-note">
         این نقشه تصویر دوبعدیِ فضای {toPersianNumber(map.dim)}بعدی است (حدود{" "}
         {toPersianNumber(Math.round(map.varianceExplained * 100))}٪ از اطلاعات
-        حفظ شده)؛ فاصله‌ی نقاط تقریبی است. عدد شباهت دقیق است و خط چینِ روی
-        نوارها آستانه‌ی {toPersianNumber(map.threshold)} را نشان می‌دهد.
+        حفظ شده)؛ فاصله‌ی نقاط تقریبی است. عدد شباهت دقیق است و از ضرب داخلی
+        بردار سؤال در بردار هر محصول به دست می‌آید.
       </p>
     </div>
   );
@@ -864,6 +945,14 @@ export default function Home() {
             m.thinkingLive ? { ...m, thinkingLive: false } : m,
           ),
         );
+        // Restore the most recent semantic map so the panel survives a reload.
+        for (let i = saved.messages.length - 1; i >= 0; i--) {
+          const withMap = (saved.messages[i].tools || []).find((t) => t.map);
+          if (withMap) {
+            setSemanticMap(withMap.map);
+            break;
+          }
+        }
       }
       if (typeof saved.think === "boolean") setThinkEnabled(saved.think);
       if (saved.theme) setTheme(saved.theme);
@@ -1101,6 +1190,7 @@ export default function Home() {
               args: t.args,
               status: "done",
               result: t.result,
+              ...(t.map ? { map: t.map } : {}),
             })),
           }));
           const maps = (data.toolLog || []).filter((t) => t.map);

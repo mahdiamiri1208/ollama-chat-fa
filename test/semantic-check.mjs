@@ -1,26 +1,62 @@
 // بررسی کیفیت جست‌وجوی معنایی: چند سؤال نمونه را اجرا می‌کند و نزدیک‌ترین
 // محصولات را با امتیاز شباهت نشان می‌دهد. برای گزارش/ارزیابی پروژه:
 //   node test/semantic-check.mjs
+//
+// سؤال‌ها دسته‌بندی شده‌اند تا بشود دید جست‌وجو در هر حالت چطور رفتار می‌کند:
+// مترادف، کاربرد/نیاز بدون نام محصول، مبهم، غلط املایی، و خارج از دامنه.
 import { semanticSearch } from "../lib/semantic.mjs";
 
-const QUERIES = [
-  "برای بازی و گیمینگ چی خوبه؟",
-  "هدفون بی‌سیم",
-  "چیزی برای شارژ گوشی",
-  "صندلی راحت برای کار",
-  "لپ تاپ",
-  "سفالگری سنتی اصفهان",
+const GROUPS = [
+  {
+    title: "مترادف و واژه‌ی متفاوت (باید همان محصولِ نام‌برده را پیدا کند)",
+    queries: [
+      "هدست",
+      "صفحه‌کلید",
+      "رایانه‌ی همراه",
+      "شارژر همراه",
+      "مچ‌بند هوشمند",
+    ],
+  },
+  {
+    title: "کاربرد و نیاز، بدون نام محصول (معنایی‌ترین حالت)",
+    queries: [
+      "برای کلاس آنلاین چی لازم دارم؟",
+      "می‌خوام قدم‌هام رو بشمارم",
+      "گوشیم زود شارژ خالی می‌کنه",
+      "پشتم موقع کار درد می‌گیره",
+      "برای سفر چی ببرم؟",
+    ],
+  },
+  {
+    title: "مبهم و کلی",
+    queries: ["یه چیز باحال برای هدیه", "چیزی برای ورزش", "لوازم جانبی گوشی"],
+  },
+  {
+    title: "غلط املایی / نیم‌فاصله / حروف عربی",
+    queries: ["هدفون بي سيم", "لپتاپ", "پاور بانک", "گيمينگ"],
+  },
+  {
+    title: "ترکیبی و چندنیازه",
+    queries: ["هدفون ارزون برای بازی", "لپ تاپ سبک برای دانشگاه"],
+  },
+  {
+    title: "خارج از دامنه (نباید محصولِ بی‌ربط را با امتیاز بالا برگرداند)",
+    queries: ["سفالگری سنتی اصفهان", "یخچال فریزر", "بلیط هواپیما"],
+  },
 ];
 
-for (const q of QUERIES) {
-  const { map, text } = await semanticSearch(q);
-  if (!map) {
-    console.log(`\n«${q}» → ${text}`);
-    continue;
-  }
-  console.log(`\n«${q}»`);
-  for (const p of map.points.slice(0, 5)) {
-    const mark = map.matchIds.includes(p.id) ? "✓" : " ";
-    console.log(`  ${mark} ${p.sim.toFixed(3)}  ${p.name}`);
+for (const group of GROUPS) {
+  console.log(`\n=== ${group.title} ===`);
+  for (const q of group.queries) {
+    const { map, text } = await semanticSearch(q);
+    if (!map) {
+      console.log(`\n«${q}» → ${text}`);
+      continue;
+    }
+    console.log(`\n«${q}»`);
+    for (const p of map.points.slice(0, 5)) {
+      const mark = map.matchIds.includes(p.id) ? "✓" : " ";
+      console.log(`  ${mark} ${p.sim.toFixed(3)}  ${p.name}`);
+    }
   }
 }
